@@ -3,27 +3,35 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Simple Book Recommender</title>
+  <title>Book Recommender</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
+
   <header>
     <h1>Book Recommender</h1>
-    <p>Select your favorite genres:</p>
-    <div id="genre-selection">
-      <label><input type="checkbox" value="science_fiction" /> Science Fiction</label>
-      <label><input type="checkbox" value="fantasy" /> Fantasy</label>
-      <label><input type="checkbox" value="mystery" /> Mystery</label>
-      <label><input type="checkbox" value="romance" /> Romance</label>
-      <label><input type="checkbox" value="history" /> History</label>
-      <label><input type="checkbox" value="horror" /> Horror</label>
-    </div>
-    <button id="get-recommendations">Get Recommendations</button>
+    <p>Please answer these questions to get personalized recommendations:</p>
   </header>
-  <main>
-    <section id="recommendations"></section>
-  </main>
 
-  <script src="app.js"></script>
-</body>
-</html>
+  <main>
+    <form id="preference-form">
+
+      <fieldset>
+        <legend>1. Which vibe matches your current mood?</legend>
+        <label><input type="radio" name="vibe" value="cozy" required /> Cozy & Comforting</label><br/>
+        <label><input type="radio" name="vibe" value="thrilling" /> Fast-paced & Thrilling</label><br/>
+        <label><input type="radio" name="vibe" value="deep" /> Thought-provoking & Deep</label><br/>
+        <label><input type="radio" name="vibe" value="humorous" /> Light & Humorous</label>
+      </fieldset>
+
+      <fieldset>
+        <legend>2. Pick a favorite storytelling style:</legend>
+        <label><input type="radio" name="storyStyle" value="epic" required /> Epic adventures in imaginary worlds</label><br/>
+        <label><input type="radio" name="storyStyle" value="real_life" /> Real-life drama and relationships</label><br/>
+        <label><input type="radio" name="storyStyle" value="mystery" /> Mysteries and puzzling whodunits</label><br/>
+        <label><input type="radio" name="storyStyle" value="historical" /> Historical tales from another era</label>
+      </fieldset>
+
+      <fieldset>
+        <legend>3. Choose a setting you'd love to explore:</legend>
+        <label><input type="radio" name="setting" value="futuristic" required /> Fut
