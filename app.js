@@ -1,13 +1,3 @@
-Certainly! Below is a complete, updated JavaScript (`app.js`) file that:
-
-- Fetches book data from **Open Library**, **Google Books API**, **Library of Congress**, and **Publishers Weekly** RSS via rss2json.com.
-- Loosens publication date filtering (last 3 years) but keeps books missing dates.
-- Logs fetched data for debugging.
-- Merges, deduplicates, filters, sorts, and displays results in a Netflix-style layout.
-
-You can replace your existing `app.js` with this code.
-
-```javascript
 const answerTagMap = {
   vibe: {
     cozy: ["romance", "slice_of_life", "light_fiction"],
@@ -339,5 +329,3 @@ document.addEventListener("DOMContentLoaded", () => {
     recommendationsDiv.appendChild(laneDiv);
   });
 });
-```
-
