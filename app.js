@@ -79,7 +79,6 @@ document.addEventListener("DOMContentLoaded", () => {
       const res = await fetch(url);
       if (!res.ok) throw new Error("Open Library fetch failed");
       const json = await res.json();
-      console.log(`Open Library books for '${subject}':`, json.works);
       return json.works || [];
     } catch (e) {
       console.error(e);
@@ -93,7 +92,6 @@ document.addEventListener("DOMContentLoaded", () => {
       const res = await fetch(url);
       if (!res.ok) throw new Error("Google Books fetch failed");
       const data = await res.json();
-      console.log(`Google Books for '${subject}':`, data.items);
       return (data.items || []).map(item => {
         const v = item.volumeInfo;
         return {
@@ -118,14 +116,13 @@ document.addEventListener("DOMContentLoaded", () => {
       const res = await fetch(url);
       if (!res.ok) throw new Error("Library of Congress fetch failed");
       const data = await res.json();
-      console.log(`Library of Congress books for '${keyword}':`, data.results);
       return (data.results || []).map(item => ({
         source: "loc",
         id: item.id || item.url,
         title: item.title,
         authors: item.contributors || [],
         publishedDate: item.date || "",
-        cover_id: "", // no direct cover available
+        cover_id: "",
         description: item.description || ""
       }));
     } catch (e) {
@@ -134,16 +131,33 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  // New function: enrich LOC book with OpenLibrary cover ID if possible
+  async function enrichLocBookCover(book) {
+    if (!book.title) return book;
+    const author = Array.isArray(book.authors) && book.authors.length > 0 ? book.authors[0] : "";
+    const titleParam = encodeURIComponent(book.title);
+    const authorParam = encodeURIComponent(author);
+    const searchUrl = `https://openlibrary.org/search.json?title=${titleParam}&author=${authorParam}&limit=1`;
+    try {
+      const response = await fetch(searchUrl);
+      if (!response.ok) throw new Error("Open Library search failed");
+      const data = await response.json();
+      if (data.docs && data.docs.length > 0 && data.docs[0].cover_i) {
+        book.cover_id = data.docs[0].cover_i;
+      }
+    } catch (e) {
+      console.error("Error enriching LOC book cover:", e);
+    }
+    return book;
+  }
+
   async function fetchPublishersWeekly() {
-    const rssUrl = encodeURIComponent(
-      "https://publishersweekly.com/pw/rss/current.xml"
-    );
+    const rssUrl = encodeURIComponent("https://publishersweekly.com/pw/rss/current.xml");
     const jsonApi = `https://api.rss2json.com/v1/api.json?rss_url=${rssUrl}`;
     try {
       const res = await fetch(jsonApi);
       if (!res.ok) throw new Error("Publishers Weekly fetch failed");
       const data = await res.json();
-      console.log("Publishers Weekly RSS items:", data.items);
       return (data.items || []).map(item => ({
         source: "publishersweekly",
         id: item.guid || item.link,
@@ -159,7 +173,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  form.addEventListener("submit", async event => {
+  form.addEventListener("submit", async (event) => {
     event.preventDefault();
     recommendationsDiv.innerHTML = "<p>Loading recommendations...</p>";
 
@@ -172,9 +186,7 @@ document.addEventListener("DOMContentLoaded", () => {
       complexity: form.elements["complexity"].value,
       humor: form.elements["humor"].value,
       ending: form.elements["ending"].value,
-      authors: [...form.elements["authors"]]
-        .filter(a => a.checked)
-        .map(a => a.value),
+      authors: [...form.elements["authors"]].filter(a => a.checked).map(a => a.value),
       newOrOld: form.elements["newOrOld"].value
     };
 
@@ -215,16 +227,16 @@ document.addEventListener("DOMContentLoaded", () => {
         id: b.key,
         title: b.title,
         authors: b.authors ? b.authors.map(a => a.name) : [],
-        publishedDate: b.first_publish_year
-          ? b.first_publish_year.toString()
-          : "",
+        publishedDate: b.first_publish_year ? b.first_publish_year.toString() : "",
         cover_id: b.cover_id,
         description: b.description || ""
       }));
 
       const googleBooks = await fetchBooksGoogle(tag);
 
-      const locBooks = await fetchLocBooks(tag);
+      let locBooks = await fetchLocBooks(tag);
+      // Enrich LOC books with Open Library covers
+      locBooks = await Promise.all(locBooks.map(enrichLocBookCover));
 
       allBooks = allBooks.concat(olBooks, googleBooks, locBooks);
     }
@@ -232,6 +244,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const pwBooks = await fetchPublishersWeekly();
     allBooks = allBooks.concat(pwBooks);
 
+    // Deduplicate by source + id key
     const uniqueMap = new Map();
     allBooks.forEach(book => {
       const key = `${book.source}_${book.id}`;
@@ -239,6 +252,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
     allBooks = Array.from(uniqueMap.values());
 
+    // Filter by publish year or keep if no date
     allBooks = allBooks.filter(b => {
       if (!b.publishedDate) return true;
       const yearMatch = b.publishedDate.match(/\d{4}/);
@@ -247,6 +261,7 @@ document.addEventListener("DOMContentLoaded", () => {
       return year >= yearFilterMin && year <= yearFilterMax;
     });
 
+    // Sort preferred authors first
     if (answers.authors.length > 0) {
       allBooks.sort((a, b) => {
         const aPref = a.authors.some(au => answers.authors.includes(au));
