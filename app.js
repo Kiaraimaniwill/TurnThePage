@@ -1,4 +1,13 @@
-// Mapping answers to tags for personalization
+Certainly! Below is a complete, updated JavaScript (`app.js`) file that:
+
+- Fetches book data from **Open Library**, **Google Books API**, **Library of Congress**, and **Publishers Weekly** RSS via rss2json.com.
+- Loosens publication date filtering (last 3 years) but keeps books missing dates.
+- Logs fetched data for debugging.
+- Merges, deduplicates, filters, sorts, and displays results in a Netflix-style layout.
+
+You can replace your existing `app.js` with this code.
+
+```javascript
 const answerTagMap = {
   vibe: {
     cozy: ["romance", "slice_of_life", "light_fiction"],
@@ -64,24 +73,23 @@ document.addEventListener("DOMContentLoaded", () => {
   const authorCheckboxes = document.querySelectorAll("input[name='authors']");
   const maxAuthorSelections = 3;
 
-  // Limit author selection to 3
   authorCheckboxes.forEach(cb => {
     cb.addEventListener("change", () => {
       const checked = [...authorCheckboxes].filter(c => c.checked);
       if (checked.length > maxAuthorSelections) {
-        cb.checked = false; // revert change
+        cb.checked = false;
         alert("You can select up to 3 authors only.");
       }
     });
   });
 
-  // Helper: Fetch books from Open Library by subject/tag
   async function fetchBooksBySubject(subject) {
     const url = `https://openlibrary.org/subjects/${encodeURIComponent(subject)}.json?limit=20`;
     try {
       const res = await fetch(url);
       if (!res.ok) throw new Error("Open Library fetch failed");
       const json = await res.json();
+      console.log(`Open Library books for '${subject}':`, json.works);
       return json.works || [];
     } catch (e) {
       console.error(e);
@@ -89,23 +97,23 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // Helper: Fetch books from Google Books API by subject/tag
   async function fetchBooksGoogle(subject) {
     const url = `https://www.googleapis.com/books/v1/volumes?q=subject:${encodeURIComponent(subject)}&maxResults=20`;
     try {
       const res = await fetch(url);
       if (!res.ok) throw new Error("Google Books fetch failed");
       const data = await res.json();
+      console.log(`Google Books for '${subject}':`, data.items);
       return (data.items || []).map(item => {
         const v = item.volumeInfo;
         return {
-          source: 'google',
+          source: "google",
           id: item.id,
           title: v.title,
           authors: v.authors || [],
-          publishedDate: v.publishedDate || '',
-          cover_id: v.imageLinks ? v.imageLinks.thumbnail : '',
-          description: v.description || ''
+          publishedDate: v.publishedDate || "",
+          cover_id: v.imageLinks ? v.imageLinks.thumbnail : "",
+          description: v.description || ""
         };
       });
     } catch (e) {
@@ -114,11 +122,57 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  form.addEventListener("submit", async (event) => {
+  async function fetchLocBooks(keyword) {
+    const url = `https://www.loc.gov/books/?fo=json&q=${encodeURIComponent(keyword)}&c=20`;
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error("Library of Congress fetch failed");
+      const data = await res.json();
+      console.log(`Library of Congress books for '${keyword}':`, data.results);
+      return (data.results || []).map(item => ({
+        source: "loc",
+        id: item.id || item.url,
+        title: item.title,
+        authors: item.contributors || [],
+        publishedDate: item.date || "",
+        cover_id: "", // no direct cover available
+        description: item.description || ""
+      }));
+    } catch (e) {
+      console.error(e);
+      return [];
+    }
+  }
+
+  async function fetchPublishersWeekly() {
+    const rssUrl = encodeURIComponent(
+      "https://publishersweekly.com/pw/rss/current.xml"
+    );
+    const jsonApi = `https://api.rss2json.com/v1/api.json?rss_url=${rssUrl}`;
+    try {
+      const res = await fetch(jsonApi);
+      if (!res.ok) throw new Error("Publishers Weekly fetch failed");
+      const data = await res.json();
+      console.log("Publishers Weekly RSS items:", data.items);
+      return (data.items || []).map(item => ({
+        source: "publishersweekly",
+        id: item.guid || item.link,
+        title: item.title,
+        authors: [],
+        publishedDate: "",
+        cover_id: item.thumbnail || "",
+        description: item.link
+      }));
+    } catch (e) {
+      console.error(e);
+      return [];
+    }
+  }
+
+  form.addEventListener("submit", async event => {
     event.preventDefault();
     recommendationsDiv.innerHTML = "<p>Loading recommendations...</p>";
 
-    // Collect answers from form
     const answers = {
       vibe: form.elements["vibe"].value,
       storyStyle: form.elements["storyStyle"].value,
@@ -128,11 +182,12 @@ document.addEventListener("DOMContentLoaded", () => {
       complexity: form.elements["complexity"].value,
       humor: form.elements["humor"].value,
       ending: form.elements["ending"].value,
-      authors: [...form.elements["authors"]].filter(a => a.checked).map(a => a.value),
+      authors: [...form.elements["authors"]]
+        .filter(a => a.checked)
+        .map(a => a.value),
       newOrOld: form.elements["newOrOld"].value
     };
 
-    // Map answers to tags
     let tags = [];
     tags = tags.concat(answerTagMap.vibe[answers.vibe] || []);
     tags = tags.concat(answerTagMap.storyStyle[answers.storyStyle] || []);
@@ -145,60 +200,55 @@ document.addEventListener("DOMContentLoaded", () => {
       tags = tags.concat(answerTagMap.authors[author] || []);
     });
 
-    // Remove duplicates and fix underscores for display
     tags = [...new Set(tags)].map(t => t.replace(/_/g, " "));
 
-    // Length filter helper (optional coarse filtering later)
     let pageFilter = null;
     if (answers.length === "short") pageFilter = 300;
     else if (answers.length === "medium") pageFilter = 500;
 
-    // Date filtering based on user's choice
     let yearFilterMin = 0;
     let yearFilterMax = currentYear;
     if (answers.newOrOld === "new") {
-      yearFilterMin = currentYear - 1; // last year onward
+      yearFilterMin = currentYear - 3;
     } else if (answers.newOrOld === "old") {
-      yearFilterMax = currentYear - 2;
-    } // 'both' means no year filtering
+      yearFilterMax = currentYear - 4;
+    }
 
     recommendationsDiv.innerHTML = "";
-
     let allBooks = [];
-    // Use up to 3 tags for querying APIs
     const queryTags = tags.slice(0, 3);
 
     for (const tag of queryTags) {
-      // Fetch from Open Library
       const olRaw = await fetchBooksBySubject(tag);
       const olBooks = olRaw.map(b => ({
-        source: 'openlibrary',
+        source: "openlibrary",
         id: b.key,
         title: b.title,
         authors: b.authors ? b.authors.map(a => a.name) : [],
-        publishedDate: b.first_publish_year ? b.first_publish_year.toString() : '',
+        publishedDate: b.first_publish_year
+          ? b.first_publish_year.toString()
+          : "",
         cover_id: b.cover_id,
-        description: b.description || ''
+        description: b.description || ""
       }));
 
-      // Fetch from Google Books
       const googleBooks = await fetchBooksGoogle(tag);
 
-      // Merge results
-      allBooks = allBooks.concat(olBooks, googleBooks);
+      const locBooks = await fetchLocBooks(tag);
+
+      allBooks = allBooks.concat(olBooks, googleBooks, locBooks);
     }
 
-    // Deduplicate by source + id
-    const uniqueBooksMap = new Map();
-    allBooks.forEach(book => {
-      const uniqueKey = `${book.source}_${book.id}`;
-      if (!uniqueBooksMap.has(uniqueKey)) {
-        uniqueBooksMap.set(uniqueKey, book);
-      }
-    });
-    allBooks = Array.from(uniqueBooksMap.values());
+    const pwBooks = await fetchPublishersWeekly();
+    allBooks = allBooks.concat(pwBooks);
 
-    // Filter by publication date (handle date strings)
+    const uniqueMap = new Map();
+    allBooks.forEach(book => {
+      const key = `${book.source}_${book.id}`;
+      if (!uniqueMap.has(key)) uniqueMap.set(key, book);
+    });
+    allBooks = Array.from(uniqueMap.values());
+
     allBooks = allBooks.filter(b => {
       if (!b.publishedDate) return true;
       const yearMatch = b.publishedDate.match(/\d{4}/);
@@ -207,7 +257,6 @@ document.addEventListener("DOMContentLoaded", () => {
       return year >= yearFilterMin && year <= yearFilterMax;
     });
 
-    // Sort: preferred authors first
     if (answers.authors.length > 0) {
       allBooks.sort((a, b) => {
         const aPref = a.authors.some(au => answers.authors.includes(au));
@@ -219,29 +268,31 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     if (allBooks.length === 0) {
-      recommendationsDiv.innerHTML = "<p>No recommendations found based on your preferences. Try adjusting your choices.</p>";
+      recommendationsDiv.innerHTML =
+        "<p>No recommendations found based on your preferences. Try adjusting your choices.</p>";
       return;
     }
 
-    // Display books in Netflix-style horizontal scroll lane
     const laneDiv = document.createElement("section");
     laneDiv.className = "lane";
     const laneTitle = document.createElement("h2");
-    laneTitle.textContent = `Recommended for you — based on your tastes`;
+    laneTitle.textContent =
+      "Recommended for you — combined from multiple sources";
     laneDiv.appendChild(laneTitle);
 
     const bookListDiv = document.createElement("div");
     bookListDiv.className = "book-list";
 
-    allBooks.slice(0, 20).forEach(book => {
+    allBooks.slice(0, 30).forEach(book => {
       const bookDiv = document.createElement("div");
       bookDiv.className = "book";
 
       const img = document.createElement("img");
       if (book.cover_id) {
-        img.src = (book.source === 'openlibrary')
-          ? `https://covers.openlibrary.org/b/id/${book.cover_id}-M.jpg`
-          : book.cover_id; // Google Books thumbnail URL
+        img.src =
+          book.source === "openlibrary"
+            ? `https://covers.openlibrary.org/b/id/${book.cover_id}-M.jpg`
+            : book.cover_id;
       } else {
         img.src = "https://via.placeholder.com/120x180?text=No+Cover";
       }
@@ -255,12 +306,30 @@ document.addEventListener("DOMContentLoaded", () => {
 
       const authorDiv = document.createElement("div");
       authorDiv.className = "book-author";
-      authorDiv.textContent = book.authors.length ? book.authors.join(", ") : "Unknown author";
+      authorDiv.textContent = book.authors.length
+        ? book.authors.join(", ")
+        : "Unknown author";
       bookDiv.appendChild(authorDiv);
 
       const explanationDiv = document.createElement("div");
       explanationDiv.className = "explanation";
-      explanationDiv.textContent = `From ${book.source === 'openlibrary' ? 'Open Library' : 'Google Books'}`;
+      explanationDiv.innerHTML = `From <strong>${
+        book.source === "openlibrary"
+          ? "Open Library"
+          : book.source === "google"
+          ? "Google Books"
+          : book.source === "loc"
+          ? "Library of Congress"
+          : "Publishers Weekly"
+      }</strong>`;
+      if (book.description && book.description.length < 120) {
+        explanationDiv.innerHTML += `<br><em>${book.description}</em>`;
+      } else if (book.description) {
+        explanationDiv.innerHTML += `<br><em>${book.description.substring(
+          0,
+          120
+        )}...</em>`;
+      }
       bookDiv.appendChild(explanationDiv);
 
       bookListDiv.appendChild(bookDiv);
@@ -268,6 +337,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     laneDiv.appendChild(bookListDiv);
     recommendationsDiv.appendChild(laneDiv);
-
   });
 });
+```
+
