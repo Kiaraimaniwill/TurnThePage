@@ -1,4 +1,4 @@
-// Mapping answers to tags
+// Mapping answers to tags for personalization
 const answerTagMap = {
   vibe: {
     cozy: ["romance", "slice_of_life", "light_fiction"],
@@ -75,11 +75,50 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
+  // Helper: Fetch books from Open Library by subject/tag
+  async function fetchBooksBySubject(subject) {
+    const url = `https://openlibrary.org/subjects/${encodeURIComponent(subject)}.json?limit=20`;
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error("Open Library fetch failed");
+      const json = await res.json();
+      return json.works || [];
+    } catch (e) {
+      console.error(e);
+      return [];
+    }
+  }
+
+  // Helper: Fetch books from Google Books API by subject/tag
+  async function fetchBooksGoogle(subject) {
+    const url = `https://www.googleapis.com/books/v1/volumes?q=subject:${encodeURIComponent(subject)}&maxResults=20`;
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error("Google Books fetch failed");
+      const data = await res.json();
+      return (data.items || []).map(item => {
+        const v = item.volumeInfo;
+        return {
+          source: 'google',
+          id: item.id,
+          title: v.title,
+          authors: v.authors || [],
+          publishedDate: v.publishedDate || '',
+          cover_id: v.imageLinks ? v.imageLinks.thumbnail : '',
+          description: v.description || ''
+        };
+      });
+    } catch (e) {
+      console.error(e);
+      return [];
+    }
+  }
+
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     recommendationsDiv.innerHTML = "<p>Loading recommendations...</p>";
 
-    // Collect answers:
+    // Collect answers from form
     const answers = {
       vibe: form.elements["vibe"].value,
       storyStyle: form.elements["storyStyle"].value,
@@ -106,81 +145,75 @@ document.addEventListener("DOMContentLoaded", () => {
       tags = tags.concat(answerTagMap.authors[author] || []);
     });
 
-    // Remove duplicates & sanitize tags (replace underscores with spaces)
+    // Remove duplicates and fix underscores for display
     tags = [...new Set(tags)].map(t => t.replace(/_/g, " "));
 
-    // For length, we treat separately:
+    // Length filter helper (optional coarse filtering later)
     let pageFilter = null;
     if (answers.length === "short") pageFilter = 300;
     else if (answers.length === "medium") pageFilter = 500;
 
-    // For new vs old filtering: filter by publication year
+    // Date filtering based on user's choice
     let yearFilterMin = 0;
     let yearFilterMax = currentYear;
     if (answers.newOrOld === "new") {
-      yearFilterMin = currentYear - 1; // last year onwards
+      yearFilterMin = currentYear - 1; // last year onward
     } else if (answers.newOrOld === "old") {
       yearFilterMax = currentYear - 2;
-    } // else both = no year filtering
-
-    // Fetch books by tags from Open Library
-    // Open Library's Subject API allows searching by a single subject, so pick main tags
-    // We'll pick up to 3 tags and get top books for each, then merge and dedupe
+    } // 'both' means no year filtering
 
     recommendationsDiv.innerHTML = "";
 
     let allBooks = [];
-
-    // Helper to fetch books from Open Library by subject
-    async function fetchBooksBySubject(subject) {
-      const url = `https://openlibrary.org/subjects/${encodeURIComponent(subject)}.json?limit=20`;
-      try {
-        const res = await fetch(url);
-        if (!res.ok) throw new Error("Open Library fetch failed");
-        const json = await res.json();
-        return json.works || [];
-      } catch (e) {
-        console.error(e);
-        return [];
-      }
-    }
-
-    // Limit to top 3 tags (most impactful)
+    // Use up to 3 tags for querying APIs
     const queryTags = tags.slice(0, 3);
 
     for (const tag of queryTags) {
-      const books = await fetchBooksBySubject(tag);
-      allBooks = allBooks.concat(books);
+      // Fetch from Open Library
+      const olRaw = await fetchBooksBySubject(tag);
+      const olBooks = olRaw.map(b => ({
+        source: 'openlibrary',
+        id: b.key,
+        title: b.title,
+        authors: b.authors ? b.authors.map(a => a.name) : [],
+        publishedDate: b.first_publish_year ? b.first_publish_year.toString() : '',
+        cover_id: b.cover_id,
+        description: b.description || ''
+      }));
+
+      // Fetch from Google Books
+      const googleBooks = await fetchBooksGoogle(tag);
+
+      // Merge results
+      allBooks = allBooks.concat(olBooks, googleBooks);
     }
 
-    // Filter duplicates based on OL key
+    // Deduplicate by source + id
     const uniqueBooksMap = new Map();
     allBooks.forEach(book => {
-      if (!uniqueBooksMap.has(book.key)) {
-        uniqueBooksMap.set(book.key, book);
+      const uniqueKey = `${book.source}_${book.id}`;
+      if (!uniqueBooksMap.has(uniqueKey)) {
+        uniqueBooksMap.set(uniqueKey, book);
       }
     });
     allBooks = Array.from(uniqueBooksMap.values());
 
-    // Filter by page count roughly if available
-    if (pageFilter) {
-      allBooks = allBooks.filter(b => b.subject ? b.subject.some(s => s.toLowerCase().includes(answers.length)) : true);
-      // Note: Open Library API has limited structured page count data — this filter is approximate
-    }
-
-    // Filter by publish date if available
+    // Filter by publication date (handle date strings)
     allBooks = allBooks.filter(b => {
-      if (!b.first_publish_year) return true;
-      return b.first_publish_year >= yearFilterMin && b.first_publish_year <= yearFilterMax;
+      if (!b.publishedDate) return true;
+      const yearMatch = b.publishedDate.match(/\d{4}/);
+      if (!yearMatch) return true;
+      const year = parseInt(yearMatch[0], 10);
+      return year >= yearFilterMin && year <= yearFilterMax;
     });
 
-    // Sort books: prioritize user-preferred authors higher
+    // Sort: preferred authors first
     if (answers.authors.length > 0) {
       allBooks.sort((a, b) => {
-        const aHasAuthor = a.authors && a.authors.some(au => answers.authors.includes(au.name));
-        const bHasAuthor = b.authors && b.authors.some(au => answers.authors.includes(au.name));
-        if (aHasAuthor && !bHasAuthor) return -1;
-        if (!aHasAuthor && bHasAuthor) return 1;
+        const aPref = a.authors.some(au => answers.authors.includes(au));
+        const bPref = b.authors.some(au => answers.authors.includes(au));
+        if (aPref && !bPref) return -1;
+        if (!aPref && bPref) return 1;
         return 0;
       });
     }
@@ -190,7 +223,7 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    // Display books in Netflix-style lanes
+    // Display books in Netflix-style horizontal scroll lane
     const laneDiv = document.createElement("section");
     laneDiv.className = "lane";
     const laneTitle = document.createElement("h2");
@@ -204,32 +237,30 @@ document.addEventListener("DOMContentLoaded", () => {
       const bookDiv = document.createElement("div");
       bookDiv.className = "book";
 
-      // Cover image
       const img = document.createElement("img");
       if (book.cover_id) {
-        img.src = `https://covers.openlibrary.org/b/id/${book.cover_id}-M.jpg`;
+        img.src = (book.source === 'openlibrary')
+          ? `https://covers.openlibrary.org/b/id/${book.cover_id}-M.jpg`
+          : book.cover_id; // Google Books thumbnail URL
       } else {
         img.src = "https://via.placeholder.com/120x180?text=No+Cover";
       }
       img.alt = book.title;
       bookDiv.appendChild(img);
 
-      // Title
       const title = document.createElement("div");
       title.className = "book-title";
       title.textContent = book.title;
       bookDiv.appendChild(title);
 
-      // Authors
       const authorDiv = document.createElement("div");
       authorDiv.className = "book-author";
-      authorDiv.textContent = (book.authors && book.authors.length) ? book.authors.map(a => a.name).join(", ") : "Unknown author";
+      authorDiv.textContent = book.authors.length ? book.authors.join(", ") : "Unknown author";
       bookDiv.appendChild(authorDiv);
 
-      // Explanation (simple summary why recommended)
       const explanationDiv = document.createElement("div");
       explanationDiv.className = "explanation";
-      explanationDiv.textContent = `Because you like ${tags.join(", ")}`;
+      explanationDiv.textContent = `From ${book.source === 'openlibrary' ? 'Open Library' : 'Google Books'}`;
       bookDiv.appendChild(explanationDiv);
 
       bookListDiv.appendChild(bookDiv);
