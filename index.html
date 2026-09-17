@@ -34,4 +34,74 @@
 
       <fieldset>
         <legend>3. Choose a setting you'd love to explore:</legend>
-        <label><input type="radio" name="setting" value="futuristic" required /> Fut
+        <label><input type="radio" name="setting" value="futuristic" required /> Futuristic cities or outer space</label><br/>
+        <label><input type="radio" name="setting" value="enchanted" /> Enchanted forests and magical kingdoms</label><br/>
+        <label><input type="radio" name="setting" value="small_town" /> Small towns or big bustling cities</label><br/>
+        <label><input type="radio" name="setting" value="past_era" /> Past eras and historical times</label>
+      </fieldset>
+
+      <fieldset>
+        <legend>4. What type of characters do you connect with most?</legend>
+        <label><input type="radio" name="character" value="hero" required /> Heroes on a personal journey</label><br/>
+        <label><input type="radio" name="character" value="underdog" /> Underdogs overcoming challenges</label><br/>
+        <label><input type="radio" name="character" value="detective" /> Brilliant detectives or investigators</label><br/>
+        <label><input type="radio" name="character" value="lover" /> Star-crossed lovers</label>
+      </fieldset>
+
+      <fieldset>
+        <legend>5. What’s your preferred book length?</legend>
+        <label><input type="radio" name="length" value="short" required /> Short and quick reads (under 300 pages)</label><br/>
+        <label><input type="radio" name="length" value="medium" /> Moderate length (300-500 pages)</label><br/>
+        <label><input type="radio" name="length" value="long" /> Lengthy epics or series (500+ pages)</label>
+      </fieldset>
+
+      <fieldset>
+        <legend>6. Do you enjoy books with complex themes or prefer straightforward stories?</legend>
+        <label><input type="radio" name="complexity" value="complex" required /> Complex, layered themes</label><br/>
+        <label><input type="radio" name="complexity" value="simple" /> Clear and easy-going plots</label>
+      </fieldset>
+
+      <fieldset>
+        <legend>7. How important is humor in your reading?</legend>
+        <label><input type="radio" name="humor" value="very" required /> Very important — I want to laugh!</label><br/>
+        <label><input type="radio" name="humor" value="some" /> Some humor is nice</label><br/>
+        <label><input type="radio" name="humor" value="none" /> Not important; I prefer serious tone</label>
+      </fieldset>
+
+      <fieldset>
+        <legend>8. What kind of endings do you usually prefer?</legend>
+        <label><input type="radio" name="ending" value="happy" required /> Happy and uplifting</label><br/>
+        <label><input type="radio" name="ending" value="bittersweet" /> Bittersweet or thought-provoking</label><br/>
+        <label><input type="radio" name="ending" value="open" /> Open-ended or ambiguous</label>
+      </fieldset>
+
+      <fieldset>
+        <legend>9. Pick your top 3 favorite authors:</legend>
+        <label><input type="checkbox" name="authors" value="J.K. Rowling" /> J.K. Rowling</label><br/>
+        <label><input type="checkbox" name="authors" value="Stephen King" /> Stephen King</label><br/>
+        <label><input type="checkbox" name="authors" value="Agatha Christie" /> Agatha Christie</label><br/>
+        <label><input type="checkbox" name="authors" value="Neil Gaiman" /> Neil Gaiman</label><br/>
+        <label><input type="checkbox" name="authors" value="Jane Austen" /> Jane Austen</label><br/>
+        <label><input type="checkbox" name="authors" value="George R.R. Martin" /> George R.R. Martin</label><br/>
+        <label><input type="checkbox" name="authors" value="Margaret Atwood" /> Margaret Atwood</label><br/>
+        <label><input type="checkbox" name="authors" value="Haruki Murakami" /> Haruki Murakami</label><br/>
+        <label><input type="checkbox" name="authors" value="Isabel Allende" /> Isabel Allende</label>
+      </fieldset>
+
+      <fieldset>
+        <legend>10. Which categories would you like your recommendations from?</legend>
+        <label><input type="radio" name="newOrOld" value="new" required /> Mostly new releases (past year)</label><br/>
+        <label><input type="radio" name="newOrOld" value="old" /> Mostly older classics and favorites</label><br/>
+        <label><input type="radio" name="newOrOld" value="both" /> A healthy mix of both</label>
+      </fieldset>
+
+      <button type="submit">Get My Recommendations</button>
+    </form>
+
+    <div id="recommendations"></div>
+  </main>
+
+  <script src="app.js"></script>
+
+</body>
+</html>
