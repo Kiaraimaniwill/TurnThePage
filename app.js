@@ -3,44 +3,44 @@ const answerTagMap = {
     cozy: ["romance", "slice_of_life", "light_fiction"],
     thrilling: ["thriller", "suspense", "adventure"],
     deep: ["literary_fiction", "classics", "historical"],
-    humorous: ["comedy", "contemporary"]
+    humorous: ["comedy", "contemporary"],
   },
   storyStyle: {
     epic: ["fantasy", "science_fiction"],
     real_life: ["contemporary", "drama"],
     mystery: ["mystery", "crime"],
-    historical: ["historical", "biography"]
+    historical: ["historical", "biography"],
   },
   setting: {
     futuristic: ["science_fiction"],
     enchanted: ["fantasy"],
     small_town: ["romance", "slice_of_life"],
-    past_era: ["historical"]
+    past_era: ["historical"],
   },
   character: {
     hero: ["adventure", "fantasy"],
     underdog: ["drama", "contemporary"],
     detective: ["mystery", "crime"],
-    lover: ["romance"]
+    lover: ["romance"],
   },
   length: {
     short: "under_300",
     medium: "300_500",
-    long: "500_plus"
+    long: "500_plus",
   },
   complexity: {
     complex: ["literary_fiction", "classics"],
-    simple: ["light_fiction", "contemporary"]
+    simple: ["light_fiction", "contemporary"],
   },
   humor: {
     very: ["comedy"],
     some: ["light_fiction"],
-    none: []
+    none: [],
   },
   ending: {
     happy: ["feel_good"],
     bittersweet: ["bittersweet", "thought_provoking"],
-    open: ["open_ended"]
+    open: ["open_ended"],
   },
   authors: {
     "J.K. Rowling": ["fantasy"],
@@ -51,8 +51,8 @@ const answerTagMap = {
     "George R.R. Martin": ["fantasy"],
     "Margaret Atwood": ["literary_fiction", "sci_fi"],
     "Haruki Murakami": ["magical_realism", "literary_fiction"],
-    "Isabel Allende": ["historical", "magical_realism"]
-  }
+    "Isabel Allende": ["historical", "magical_realism"],
+  },
 };
 
 const currentYear = new Date().getFullYear();
@@ -63,9 +63,9 @@ document.addEventListener("DOMContentLoaded", () => {
   const authorCheckboxes = document.querySelectorAll("input[name='authors']");
   const maxAuthorSelections = 3;
 
-  authorCheckboxes.forEach(cb => {
+  authorCheckboxes.forEach((cb) => {
     cb.addEventListener("change", () => {
-      const checked = [...authorCheckboxes].filter(c => c.checked);
+      const checked = [...authorCheckboxes].filter((c) => c.checked);
       if (checked.length > maxAuthorSelections) {
         cb.checked = false;
         alert("You can select up to 3 authors only.");
@@ -74,7 +74,9 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   async function fetchBooksBySubject(subject) {
-    const url = `https://openlibrary.org/subjects/${encodeURIComponent(subject)}.json?limit=20`;
+    const url = `https://openlibrary.org/subjects/${encodeURIComponent(
+      subject
+    )}.json?limit=20`;
     try {
       const res = await fetch(url);
       if (!res.ok) throw new Error("Open Library fetch failed");
@@ -87,12 +89,14 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   async function fetchBooksGoogle(subject) {
-    const url = `https://www.googleapis.com/books/v1/volumes?q=subject:${encodeURIComponent(subject)}&maxResults=20`;
+    const url = `https://www.googleapis.com/books/v1/volumes?q=subject:${encodeURIComponent(
+      subject
+    )}&maxResults=20`;
     try {
       const res = await fetch(url);
       if (!res.ok) throw new Error("Google Books fetch failed");
       const data = await res.json();
-      return (data.items || []).map(item => {
+      return (data.items || []).map((item) => {
         const v = item.volumeInfo;
         return {
           source: "google",
@@ -101,7 +105,7 @@ document.addEventListener("DOMContentLoaded", () => {
           authors: v.authors || [],
           publishedDate: v.publishedDate || "",
           cover_id: v.imageLinks ? v.imageLinks.thumbnail : "",
-          description: v.description || ""
+          description: v.description || "",
         };
       });
     } catch (e) {
@@ -110,44 +114,28 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  async function fetchLocBooks(keyword) {
-    const url = `https://www.loc.gov/books/?fo=json&q=${encodeURIComponent(keyword)}&c=20`;
+  async function fetchPublishersWeekly() {
+    const rssUrl = encodeURIComponent(
+      "https://publishersweekly.com/pw/rss/current.xml"
+    );
+    const jsonApi = `https://api.rss2json.com/v1/api.json?rss_url=${rssUrl}`;
     try {
-      const res = await fetch(url);
-      if (!res.ok) throw new Error("Library of Congress fetch failed");
+      const res = await fetch(jsonApi);
+      if (!res.ok) throw new Error("Publishers Weekly fetch failed");
       const data = await res.json();
-      return (data.results || []).map(item => ({
-        source: "loc",
-        id: item.id || item.url,
+      return (data.items || []).map((item) => ({
+        source: "publishersweekly",
+        id: item.guid || item.link,
         title: item.title,
-        authors: item.contributors || [],
-        publishedDate: item.date || "",
-        cover_id: "",
-        description: item.description || ""
+        authors: [],
+        publishedDate: "",
+        cover_id: item.thumbnail || "",
+        description: item.link,
       }));
     } catch (e) {
       console.error(e);
       return [];
     }
-  }
-
-  async function enrichLocBookCover(book) {
-    if (!book.title) return book;
-    const author = Array.isArray(book.authors) && book.authors.length > 0 ? book.authors[0] : "";
-    const titleParam = encodeURIComponent(book.title);
-    const authorParam = encodeURIComponent(author);
-    const searchUrl = `https://openlibrary.org/search.json?title=${titleParam}&author=${authorParam}&limit=1`;
-    try {
-      const response = await fetch(searchUrl);
-      if (!response.ok) throw new Error("Open Library search failed");
-      const data = await response.json();
-      if (data.docs && data.docs.length > 0 && data.docs[0].cover_i) {
-        book.cover_id = data.docs[0].cover_i;
-      }
-    } catch (e) {
-      console.error("Error enriching LOC book cover:", e);
-    }
-    return book;
   }
 
   form.addEventListener("submit", async (event) => {
@@ -163,8 +151,10 @@ document.addEventListener("DOMContentLoaded", () => {
       complexity: form.elements["complexity"].value,
       humor: form.elements["humor"].value,
       ending: form.elements["ending"].value,
-      authors: [...form.elements["authors"]].filter(a => a.checked).map(a => a.value),
-      newOrOld: form.elements["newOrOld"].value
+      authors: [...form.elements["authors"]]
+        .filter((a) => a.checked)
+        .map((a) => a.value),
+      newOrOld: form.elements["newOrOld"].value,
     };
 
     let tags = [];
@@ -175,15 +165,11 @@ document.addEventListener("DOMContentLoaded", () => {
     tags = tags.concat(answerTagMap.complexity[answers.complexity] || []);
     tags = tags.concat(answerTagMap.humor[answers.humor] || []);
     tags = tags.concat(answerTagMap.ending[answers.ending] || []);
-    answers.authors.forEach(author => {
+    answers.authors.forEach((author) => {
       tags = tags.concat(answerTagMap.authors[author] || []);
     });
 
-    tags = [...new Set(tags)].map(t => t.replace(/_/g, " "));
-
-    let pageFilter = null;
-    if (answers.length === "short") pageFilter = 300;
-    else if (answers.length === "medium") pageFilter = 500;
+    tags = [...new Set(tags)].map((t) => t.replace(/_/g, " "));
 
     let yearFilterMin = 0;
     let yearFilterMax = currentYear;
@@ -199,32 +185,32 @@ document.addEventListener("DOMContentLoaded", () => {
 
     for (const tag of queryTags) {
       const olRaw = await fetchBooksBySubject(tag);
-      const olBooks = olRaw.map(b => ({
+      const olBooks = olRaw.map((b) => ({
         source: "openlibrary",
         id: b.key,
         title: b.title,
-        authors: b.authors ? b.authors.map(a => a.name) : [],
+        authors: b.authors ? b.authors.map((a) => a.name) : [],
         publishedDate: b.first_publish_year ? b.first_publish_year.toString() : "",
         cover_id: b.cover_id,
-        description: b.description || ""
+        description: b.description || "",
       }));
 
       const googleBooks = await fetchBooksGoogle(tag);
 
-      let locBooks = await fetchLocBooks(tag);
-      locBooks = await Promise.all(locBooks.map(enrichLocBookCover));
-
-      allBooks = allBooks.concat(olBooks, googleBooks, locBooks);
+      allBooks = allBooks.concat(olBooks, googleBooks);
     }
 
+    const pwBooks = await fetchPublishersWeekly();
+    allBooks = allBooks.concat(pwBooks);
+
     const uniqueMap = new Map();
-    allBooks.forEach(book => {
+    allBooks.forEach((book) => {
       const key = `${book.source}_${book.id}`;
       if (!uniqueMap.has(key)) uniqueMap.set(key, book);
     });
     allBooks = Array.from(uniqueMap.values());
 
-    allBooks = allBooks.filter(b => {
+    allBooks = allBooks.filter((b) => {
       if (!b.publishedDate) return true;
       const yearMatch = b.publishedDate.match(/\d{4}/);
       if (!yearMatch) return true;
@@ -234,8 +220,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (answers.authors.length > 0) {
       allBooks.sort((a, b) => {
-        const aPref = a.authors.some(au => answers.authors.includes(au));
-        const bPref = b.authors.some(au => answers.authors.includes(au));
+        const aPref = a.authors.some((au) => answers.authors.includes(au));
+        const bPref = b.authors.some((au) => answers.authors.includes(au));
         if (aPref && !bPref) return -1;
         if (!aPref && bPref) return 1;
         return 0;
@@ -258,7 +244,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const bookListDiv = document.createElement("div");
     bookListDiv.className = "book-list";
 
-    allBooks.slice(0, 30).forEach(book => {
+    allBooks.slice(0, 30).forEach((book) => {
       const bookDiv = document.createElement("div");
       bookDiv.className = "book";
 
@@ -293,7 +279,7 @@ document.addEventListener("DOMContentLoaded", () => {
           ? "Open Library"
           : book.source === "google"
           ? "Google Books"
-          : "Library of Congress"
+          : "Publishers Weekly"
       }</strong>`;
       if (book.description && book.description.length < 120) {
         explanationDiv.innerHTML += `<br><em>${book.description}</em>`;
