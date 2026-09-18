@@ -131,7 +131,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // New function: enrich LOC book with OpenLibrary cover ID if possible
   async function enrichLocBookCover(book) {
     if (!book.title) return book;
     const author = Array.isArray(book.authors) && book.authors.length > 0 ? book.authors[0] : "";
@@ -149,28 +148,6 @@ document.addEventListener("DOMContentLoaded", () => {
       console.error("Error enriching LOC book cover:", e);
     }
     return book;
-  }
-
-  async function fetchPublishersWeekly() {
-    const rssUrl = encodeURIComponent("https://publishersweekly.com/pw/rss/current.xml");
-    const jsonApi = `https://api.rss2json.com/v1/api.json?rss_url=${rssUrl}`;
-    try {
-      const res = await fetch(jsonApi);
-      if (!res.ok) throw new Error("Publishers Weekly fetch failed");
-      const data = await res.json();
-      return (data.items || []).map(item => ({
-        source: "publishersweekly",
-        id: item.guid || item.link,
-        title: item.title,
-        authors: [],
-        publishedDate: "",
-        cover_id: item.thumbnail || "",
-        description: item.link
-      }));
-    } catch (e) {
-      console.error(e);
-      return [];
-    }
   }
 
   form.addEventListener("submit", async (event) => {
@@ -235,16 +212,11 @@ document.addEventListener("DOMContentLoaded", () => {
       const googleBooks = await fetchBooksGoogle(tag);
 
       let locBooks = await fetchLocBooks(tag);
-      // Enrich LOC books with Open Library covers
       locBooks = await Promise.all(locBooks.map(enrichLocBookCover));
 
       allBooks = allBooks.concat(olBooks, googleBooks, locBooks);
     }
 
-    const pwBooks = await fetchPublishersWeekly();
-    allBooks = allBooks.concat(pwBooks);
-
-    // Deduplicate by source + id key
     const uniqueMap = new Map();
     allBooks.forEach(book => {
       const key = `${book.source}_${book.id}`;
@@ -252,7 +224,6 @@ document.addEventListener("DOMContentLoaded", () => {
     });
     allBooks = Array.from(uniqueMap.values());
 
-    // Filter by publish year or keep if no date
     allBooks = allBooks.filter(b => {
       if (!b.publishedDate) return true;
       const yearMatch = b.publishedDate.match(/\d{4}/);
@@ -261,7 +232,6 @@ document.addEventListener("DOMContentLoaded", () => {
       return year >= yearFilterMin && year <= yearFilterMax;
     });
 
-    // Sort preferred authors first
     if (answers.authors.length > 0) {
       allBooks.sort((a, b) => {
         const aPref = a.authors.some(au => answers.authors.includes(au));
@@ -323,9 +293,7 @@ document.addEventListener("DOMContentLoaded", () => {
           ? "Open Library"
           : book.source === "google"
           ? "Google Books"
-          : book.source === "loc"
-          ? "Library of Congress"
-          : "Publishers Weekly"
+          : "Library of Congress"
       }</strong>`;
       if (book.description && book.description.length < 120) {
         explanationDiv.innerHTML += `<br><em>${book.description}</em>`;
