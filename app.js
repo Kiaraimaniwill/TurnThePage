@@ -53,6 +53,14 @@ const answerTagMap = {
     "Haruki Murakami": ["magical_realism", "literary_fiction"],
     "Isabel Allende": ["historical", "magical_realism"],
   },
+  storytellingStyle: {
+    worldBuilding: ["fantasy", "science_fiction", "magical_realism"],
+    characterDriven: ["contemporary", "romance", "drama"],
+    fastPaced: ["thriller", "suspense", "adventure"],
+    humorous: ["comedy", "light_fiction"],
+    lyrical: ["literary_fiction", "poetry"],
+    thoughtful: ["classics", "philosophy", "historical"],
+  },
 };
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -129,7 +137,7 @@ document.addEventListener("DOMContentLoaded", () => {
       authors: [...form.elements["authors"]]
         .filter((a) => a.checked)
         .map((a) => a.value),
-      newOrOld: form.elements["newOrOld"].value,
+      storytellingStyle: form.elements["storytellingStyle"].value,
     };
 
     let tags = [];
@@ -140,6 +148,7 @@ document.addEventListener("DOMContentLoaded", () => {
     tags = tags.concat(answerTagMap.complexity[answers.complexity] || []);
     tags = tags.concat(answerTagMap.humor[answers.humor] || []);
     tags = tags.concat(answerTagMap.ending[answers.ending] || []);
+    tags = tags.concat(answerTagMap.storytellingStyle[answers.storytellingStyle] || []);
     answers.authors.forEach((author) => {
       tags = tags.concat(answerTagMap.authors[author] || []);
     });
@@ -167,9 +176,7 @@ document.addEventListener("DOMContentLoaded", () => {
       allBooks = allBooks.concat(olBooks, googleBooks);
     }
 
-    // No publish date filtering (relaxed)
-
-    // Deduplicate
+    // Remove duplicates
     const uniqueMap = new Map();
     allBooks.forEach((book) => {
       const key = `${book.source}_${book.id}`;
@@ -196,7 +203,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const laneDiv = document.createElement("section");
     laneDiv.className = "lane";
     const laneTitle = document.createElement("h2");
-    laneTitle.textContent = "Recommended for you — Open Library & Google Books";
+    laneTitle.textContent = "Recommended for you — combined from multiple sources";
     laneDiv.appendChild(laneTitle);
 
     const bookListDiv = document.createElement("div");
